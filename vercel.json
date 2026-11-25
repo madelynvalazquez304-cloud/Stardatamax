@@ -1,7 +1,15 @@
 {
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/api/telegram/:path*",
+      "destination": "/api/telegram/:path*"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

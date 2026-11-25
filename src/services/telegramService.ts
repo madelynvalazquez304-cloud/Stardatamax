@@ -770,7 +770,11 @@ class TelegramService {
               cache: 'no-store',
             }
           );
-          if (tgRes.ok) {
+          if (tgRes.status === 409) {
+            // Webhook is set up, don't use getUpdates
+            console.debug('[TelegramService] Webhook is active, skipping getUpdates');
+            this.serverWorkerActive = true;
+          } else if (tgRes.ok) {
             const tgData = await this.safeJson(tgRes);
             if (tgData && tgData.ok && Array.isArray(tgData.result)) {
               for (const upd of tgData.result) {
@@ -843,8 +847,9 @@ class TelegramService {
             }
           }
         }
-      } catch {
-        // Direct telegram check catch
+      } catch (err) {
+        // Direct telegram check catch (including 409 errors)
+        console.debug('[TelegramService] getUpdates error, relying on serverless/webhook:', err);
       }
     }
 
