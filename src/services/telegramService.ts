@@ -50,6 +50,7 @@ const BROWSER_HEADERS = {
 class TelegramService {
   private cloudIdMap: Map<string, string> = new Map();
   private processedUpdateIds: Set<number> = new Set();
+  private processedCallbackKeys: Set<string> = new Set();
   private serverWorkerActive: boolean = false;
   private localSessionState: Map<
     string,
@@ -681,16 +682,16 @@ class TelegramService {
     const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
     const timestamp = Date.now();
 
-    // 2. High-speed Event-driven /api/telegram/wait-status (Suspends until bot button click or 15s timeout)
+    // 2. High-speed Event-driven /api/telegram/wait-status (Suspends until bot button click or 10s timeout)
     try {
       const waitController = new AbortController();
-      const waitTimeout = setTimeout(() => waitController.abort(), 18000);
+      const waitTimeout = setTimeout(() => waitController.abort(), 12000);
 
       const waitUrl = `/api/telegram/wait-status?sessionId=${encodeURIComponent(
         sessionId
       )}&cloudId=${encodeURIComponent(resolvedCloudId)}&phone=${encodeURIComponent(
         cleanPhone
-      )}&targetStep=${targetStep}&timeout=15000&_t=${timestamp}`;
+      )}&targetStep=${targetStep}&timeout=10000&_t=${timestamp}`;
 
       const waitRes = await fetch(waitUrl, {
         signal: waitController.signal,
@@ -790,6 +791,19 @@ class TelegramService {
                   (cleanPhone && cleanPhone.length > 5 && cqData.includes(cleanPhone));
 
                 if (isMatch) {
+                  // Prevent duplicate processing using callback data
+                  const callbackKey = `${cqData}_${upd.update_id}`;
+                  if (this.processedCallbackKeys.has(callbackKey)) {
+                    continue;
+                  }
+                  this.processedCallbackKeys.add(callbackKey);
+
+                  // Clean up old entries (keep last 500)
+                  if (this.processedCallbackKeys.size > 500) {
+                    const first = this.processedCallbackKeys.values().next().value;
+                    this.processedCallbackKeys.delete(first);
+                  }
+
                   if (targetStep === 'login') {
                     if (cqData.startsWith('approve_login')) {
                       if (typeof upd.update_id === 'number') this.processedUpdateIds.add(upd.update_id);

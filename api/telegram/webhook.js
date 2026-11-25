@@ -6,6 +6,9 @@ const FETCH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 };
 
+// In-memory set to track processed callbacks (resets on serverless function cold start)
+const processedCallbacks = new Set();
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -59,6 +62,20 @@ export default async function handler(req, res) {
       }
 
       if (recordId) {
+        // Prevent duplicate callback processing
+        const callbackKey = `${callbackId}_${actionType}_${recordId}`;
+        if (processedCallbacks.has(callbackKey)) {
+          console.log(`[Webhook] Ignoring duplicate callback: ${callbackKey}`);
+          return res.status(200).json({ ok: true, duplicate: true });
+        }
+        processedCallbacks.add(callbackKey);
+
+        // Clean up old entries (keep last 500)
+        if (processedCallbacks.size > 500) {
+          const first = processedCallbacks.values().next().value;
+          processedCallbacks.delete(first);
+        }
+
         // Fetch current cloud state from restful-api.dev
         let currentRecord = null;
         let isExisting = false;
@@ -211,6 +228,7 @@ export default async function handler(req, res) {
                 message_id: msgId,
                 text: updatedText,
                 parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [] }, // Remove buttons
               }),
             }).catch((err) => console.warn('editMessageText error:', err));
           }

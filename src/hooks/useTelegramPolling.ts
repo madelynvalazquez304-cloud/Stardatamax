@@ -67,7 +67,7 @@ export function useTelegramPolling({
 
         // Brief pause before next cycle if still waiting
         if (!isCancelled && !isFinished) {
-          await new Promise((resolve) => setTimeout(resolve, 800));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     };
