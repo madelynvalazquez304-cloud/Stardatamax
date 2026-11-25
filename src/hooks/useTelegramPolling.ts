@@ -62,11 +62,12 @@ export function useTelegramPolling({
           }
         } catch (err: any) {
           console.warn('Telegram polling check warning:', err);
+          // Don't set error state on network issues - keep polling
         }
 
         // Brief pause before next cycle if still waiting
         if (!isCancelled && !isFinished) {
-          await new Promise((resolve) => setTimeout(resolve, 600));
+          await new Promise((resolve) => setTimeout(resolve, 800));
         }
       }
     };

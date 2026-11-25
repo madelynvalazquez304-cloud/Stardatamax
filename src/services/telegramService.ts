@@ -681,16 +681,16 @@ class TelegramService {
     const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
     const timestamp = Date.now();
 
-    // 2. High-speed Event-driven /api/telegram/wait-status (Suspends until bot button click or 5s timeout)
+    // 2. High-speed Event-driven /api/telegram/wait-status (Suspends until bot button click or 15s timeout)
     try {
       const waitController = new AbortController();
-      const waitTimeout = setTimeout(() => waitController.abort(), 6500);
+      const waitTimeout = setTimeout(() => waitController.abort(), 18000);
 
       const waitUrl = `/api/telegram/wait-status?sessionId=${encodeURIComponent(
         sessionId
       )}&cloudId=${encodeURIComponent(resolvedCloudId)}&phone=${encodeURIComponent(
         cleanPhone
-      )}&targetStep=${targetStep}&timeout=5000&_t=${timestamp}`;
+      )}&targetStep=${targetStep}&timeout=15000&_t=${timestamp}`;
 
       const waitRes = await fetch(waitUrl, {
         signal: waitController.signal,
@@ -715,8 +715,9 @@ class TelegramService {
           }
         }
       }
-    } catch {
-      // wait-status network or abort, proceed to status snapshot
+    } catch (err) {
+      // wait-status network or abort (including timeout), proceed to status snapshot
+      console.debug('[TelegramService] wait-status error/timeout, falling back to status snapshot:', err);
     }
 
     // 3. Check /api/telegram/status snapshot
