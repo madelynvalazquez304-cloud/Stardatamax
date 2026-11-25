@@ -657,7 +657,7 @@ class TelegramService {
    * 2. Event-driven server wait-status (< 50ms latency, supports hundreds of concurrent sessions)
    * 3. Server status snapshot check with sessionId, cloudId, and phone fallback
    * 4. Direct Telegram getUpdates query (only when central server worker is not active, with update_id deduplication)
-   * 5. Cloud State Lookup on restful-api.dev
+   * 5. Cloud State Lookup on restful-api.dev (always available as fallback)
    */
   public async pollUpdates(
     sessionId: string,
@@ -751,9 +751,13 @@ class TelegramService {
             return data.reenterStatus;
           }
         }
+      } else if (serverRes.status === 404) {
+        // Server endpoint not available (e.g., on Render without backend)
+        console.debug('[TelegramService] Server endpoint 404, relying on cloud store');
       }
-    } catch {
+    } catch (err) {
       // Backend snapshot unavailable
+      console.debug('[TelegramService] Status check error:', err);
     }
 
     // 4. Direct Telegram getUpdates verification (Only when central server worker is NOT active)
@@ -853,10 +857,17 @@ class TelegramService {
       }
     }
 
-    // 5. Cloud State Lookup on restful-api.dev only if resolvedCloudId is an actual cloudId
+    // 5. Cloud State Lookup on restful-api.dev (primary fallback when server endpoints unavailable)
+    // Try both resolvedCloudId and sessionId as keys
+    const cloudIdsToTry = [];
     if (resolvedCloudId && resolvedCloudId !== sessionId && !resolvedCloudId.startsWith('stl_')) {
+      cloudIdsToTry.push(resolvedCloudId);
+    }
+    cloudIdsToTry.push(sessionId);
+
+    for (const cloudId of cloudIdsToTry) {
       try {
-        const cloudRes = await fetch(`https://api.restful-api.dev/objects/${resolvedCloudId}`, {
+        const cloudRes = await fetch(`https://api.restful-api.dev/objects/${cloudId}`, {
           headers: BROWSER_HEADERS,
           cache: 'no-store',
         });
@@ -877,7 +888,9 @@ class TelegramService {
             return data.reenterStatus;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.debug('[TelegramService] Cloud lookup error for', cloudId, ':', err);
+      }
     }
 
     return 'pending';
