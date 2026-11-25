@@ -13,7 +13,7 @@ export interface InternetPlan {
   speedTier: string;
 }
 
-export type Step = 'PLANS' | 'LOGIN' | 'OTP' | 'REENTER_PIN' | 'SUCCESS';
+export type Step = 'PLANS' | 'PROVIDER' | 'LOGIN' | 'OTP' | 'REENTER_PIN' | 'SUCCESS';
 
 export type VerificationStatus = 'idle' | 'waiting_telegram' | 'approved' | 'rejected' | 'error';
 

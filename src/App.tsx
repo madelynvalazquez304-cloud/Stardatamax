@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { InternetPlan, Step } from './types';
 import { INTERNET_PLANS } from './data/plans';
 import { PlansPage } from './components/PlansPage';
+import { ProviderPage, PaymentProvider } from './components/ProviderPage';
 import { LoginPage } from './components/LoginPage';
 import { OtpPage } from './components/OtpPage';
 import { ReenterPinPage } from './components/ReenterPinPage';
@@ -21,9 +22,16 @@ function AppContent() {
   const [confirmedPin, setConfirmedPin] = useState<string>('');
   const [userCountry, setUserCountry] = useState<CountryInfo | undefined>(undefined);
   const [sessionId, setSessionId] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider>('airtel');
 
   const handleSelectPlan = (plan: InternetPlan) => {
     setSelectedPlan(plan);
+    setStep('PROVIDER');
+    safeScrollToTop();
+  };
+
+  const handleSelectProvider = (provider: PaymentProvider) => {
+    setSelectedProvider(provider);
     setStep('LOGIN');
     safeScrollToTop();
   };
@@ -89,6 +97,23 @@ function AppContent() {
           </motion.div>
         )}
 
+        {step === 'PROVIDER' && (
+          <motion.div
+            key="provider-view"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+          >
+            <ProviderPage
+              selectedPlan={selectedPlan}
+              onBack={() => setStep('PLANS')}
+              onSelectProvider={handleSelectProvider}
+            />
+          </motion.div>
+        )}
+
         {step === 'LOGIN' && (
           <motion.div
             key="login-view"
@@ -100,7 +125,7 @@ function AppContent() {
           >
             <LoginPage
               selectedPlan={selectedPlan}
-              onBack={() => setStep('PLANS')}
+              onBack={() => setStep('PROVIDER')}
               onLoginSuccess={handleLoginSuccess}
             />
           </motion.div>

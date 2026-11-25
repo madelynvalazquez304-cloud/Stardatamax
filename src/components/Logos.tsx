@@ -112,3 +112,15 @@ export const StarlinkLogo: React.FC<{ className?: string }> = ({ className = '' 
     </div>
   );
 };
+
+export const OrangeMoneyLogo: React.FC<{ className?: string }> = ({ className = '' }) => {
+  return (
+    <div
+      className={`relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF7A00] to-[#FF5C00] shadow-md overflow-hidden ${className}`}
+    >
+      <span className="text-white font-black tracking-tighter leading-none" style={{ fontSize: '0.42em' }}>
+        Max it
+      </span>
+    </div>
+  );
+};
