@@ -7,6 +7,9 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     build: {
+      // Render is configured to publish the `build/` directory.
+      outDir: 'build',
+      emptyOutDir: true,
       target: ['es2018', 'chrome64', 'edge79', 'firefox67', 'safari12'],
       cssTarget: 'chrome61',
     },

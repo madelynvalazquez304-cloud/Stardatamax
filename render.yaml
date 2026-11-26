@@ -1,16 +1,14 @@
 services:
   - type: web
     name: airtel-portal
-    runtime: node
+    env: static
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    staticPublishPath: ./build
     envVars:
       - key: NODE_ENV
         value: production
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: TELEGRAM_CHAT_ID
+      - key: VITE_TELEGRAM_TOKEN
         sync: false
       - key: VITE_TELEGRAM_BOT_TOKEN
         sync: false

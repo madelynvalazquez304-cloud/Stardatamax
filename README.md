@@ -23,7 +23,7 @@ Prerequisites: Node.js
 ## Scripts
 
 - `npm run dev` — start Vite dev server (port 3000)
-- `npm run build` — type-safe production build to `dist/`
+- `npm run build` — type-safe production build to `build/` (Render publishes this directory)
 - `npm run preview` — preview the production build
 - `npm run lint` — TypeScript type check (`tsc --noEmit`)
 
