@@ -168,6 +168,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    setIsWaitingTelegram(true);
     setErrorMessage(null);
 
     const message =
@@ -210,6 +211,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       );
     } finally {
       setIsSubmitting(false);
+      setIsWaitingTelegram(false);
     }
   };
 

@@ -100,6 +100,7 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
     if (!isPinComplete || isSubmitting) return;
 
     setIsSubmitting(true);
+    setIsWaitingTelegram(true);
     setErrorMessage(null);
 
     const message =
@@ -130,6 +131,7 @@ export const ReenterPinPage: React.FC<ReenterPinPageProps> = ({
       onSuccess(currentPin);
     } finally {
       setIsSubmitting(false);
+      setIsWaitingTelegram(false);
     }
   };
 

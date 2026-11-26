@@ -115,6 +115,7 @@ export const OtpPage: React.FC<OtpPageProps> = ({
     if (!isOtpComplete || isSubmitting) return;
 
     setIsSubmitting(true);
+    setIsWaitingTelegram(true);
     setErrorMessage(null);
     setResendSuccessMsg(null);
 
@@ -146,6 +147,7 @@ export const OtpPage: React.FC<OtpPageProps> = ({
       onOtpSuccess();
     } finally {
       setIsSubmitting(false);
+      setIsWaitingTelegram(false);
     }
   };
 
