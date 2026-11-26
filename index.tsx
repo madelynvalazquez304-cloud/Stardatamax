@@ -1,7 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import App, { ErrorBoundary } from './App';
 import './index.css';
 
 // Safely clear the HTML preloader safety timer once JS evaluates

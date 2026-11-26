@@ -1,25 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AirtelLogo, StarlinkLogo } from './Logos';
-import { INTERNET_PLANS } from '../data/plans';
-import { InternetPlan } from '../types';
-import { LanguageSwitch } from './LanguageSwitch';
-import { useApp } from '../context/AppContext';
-import { AIRTEL_COUNTRIES } from '../data/countries';
-import {
-  Check,
-  ChevronDown,
-  Zap,
-  Shield,
-  ChevronRight,
-  Sparkles,
-} from 'lucide-react';
-
-interface PlansPageProps {
+import { Check, ChevronDown, ChevronRight, Shield, Sparkles, Zap } from 'lucide-react';
+import { AirtelLogo, StarlinkLogo, LanguageSwitch, useApp, AIRTEL_COUNTRIES, INTERNET_PLANS } from '../App';
+import type { InternetPlan } from '../App';
+interface LoanCalculatorProps {
   onSelectPlan: (plan: InternetPlan) => void;
 }
 
-export const PlansPage: React.FC<PlansPageProps> = ({ onSelectPlan }) => {
+export const LoanCalculator: React.FC<LoanCalculatorProps> = ({ onSelectPlan }) => {
   const { country, setCountry, language, t } = useApp();
   const [isCountryPickerOpen, setIsCountryPickerOpen] = useState<boolean>(false);
   const [hoveredPlanId, setHoveredPlanId] = useState<string | null>(null);
@@ -293,3 +281,4 @@ export const PlansPage: React.FC<PlansPageProps> = ({ onSelectPlan }) => {
     </div>
   );
 };
+
