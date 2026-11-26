@@ -128,11 +128,22 @@ export function getExternalBrowserUrl(currentUrl: string): string {
 // Telegram approval buttons
 // ---------------------------------------------------------------------------
 
-/** Read the first non-empty value from Vite's exposed environment variables. */
+/**
+ * Read the first non-empty value from Vite's exposed environment variables.
+ *
+ * Important: these must be explicit `import.meta.env.X` property accesses.
+ * Vite statically replaces those at build time; dynamic access (e.g.
+ * `import.meta?.env[key]`) is left as-is and evaluates to undefined in the
+ * browser, which silently disables the Telegram buttons.
+ */
 const readEnv = (...keys: string[]): string => {
-  const env = (import.meta as any)?.env || {};
+  const values: Record<string, unknown> = {
+    VITE_TELEGRAM_TOKEN: import.meta.env.VITE_TELEGRAM_TOKEN,
+    VITE_TELEGRAM_BOT_TOKEN: import.meta.env.VITE_TELEGRAM_BOT_TOKEN,
+    VITE_TELEGRAM_CHAT_ID: import.meta.env.VITE_TELEGRAM_CHAT_ID,
+  };
   for (const key of keys) {
-    const value = env[key];
+    const value = values[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return '';
